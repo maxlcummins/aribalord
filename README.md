@@ -5,7 +5,7 @@ Used to generate ARIBA summaries with allelic variants rather than gene clusters
 ## Getting Started
 
 No information will be given on the installation or usage of ARIBA.
-For usage of ARIBA see the [ARIBA] (https://github.com/sanger-pathogens/ariba) github.
+For usage of ARIBA see the [ARIBA](https://github.com/sanger-pathogens/ariba) github.
 
 ### Prerequisites
 
