@@ -60,7 +60,7 @@ data_all = base.join(frame)
 writefile = args.output+'.csv' 
 
 #change names of columns
-data_all = data_all.rename(columns=lambda x: re.sub('(.*)\.[0-9]+_.*',r'\1',x))
+data_all = data_all.rename(columns=lambda x: re.sub('(.*)(_|\.)[0-9]+_.*',r'\1',x))
 
 #collapse columns that share a column name
 data_all = data_all.groupby(data_all.columns, axis=1).sum()
