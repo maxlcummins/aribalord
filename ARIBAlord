@@ -2,6 +2,7 @@
 
 import pandas as pd
 import argparse
+import regex as re
 
 parser = argparse.ArgumentParser(description='Summarise gene hits from ARIBA output')
 parser.add_argument('-f','--file',type=str, help='Path to file')
@@ -45,7 +46,6 @@ frame = []
 #append these modified dataframes to new list of dataframes called frame
 for i in df_list :
     data_pivot = (i.pivot(values = i.columns[0], columns = i.columns[1]))
-#   data_pivot = data_pivot.drop(data_pivot.columns[0])
     data_pivot = data_pivot.iloc[:,1:]
     data_pivot = data_pivot.fillna(0)
     frame.append(data_pivot)
@@ -56,7 +56,17 @@ base = df.iloc[:,0:0]
 #join new dataframes from frames to base dataframe
 data_all = base.join(frame)    
 
+#create variable from user input that will be used for naming the output
 writefile = args.output+'.csv' 
-   
+
+#change names of columns
+data_all = data_all.rename(columns=lambda x: re.sub('(.*)\.[0-9]+_.*',r'\1',x))
+
+#collapse columns that share a column name
+data_all = data_all.groupby(data_all.columns, axis=1).sum()
+
+#replace anything greater than a 1 with a 1
+data_all[data_all > 1] = 1
+
 #to write the file to disk unhash the line below and choose a filename
 data_all.to_csv(writefile)
