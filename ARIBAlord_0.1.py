@@ -1,4 +1,4 @@
-#!/Users/maxcummins/miniconda2/bin/python
+/Users/maxcummins/miniconda2/envs/py36ipy/bin/python
 
 import pandas as pd
 import argparse
