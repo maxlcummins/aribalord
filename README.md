@@ -1,7 +1,7 @@
 # ARIBAlord
-ARIBA allows for a fast, efficient and scalable approach to the genotyping of short-read sequence data. The inbuilt ARIBA summary function provides in-depth insight into the quantity and quality of genes detected within short-read sequence data, however the cluster ID's generated through the use of CD-hit convolute the en-masse generation of easily interpretable reports detailing the specific reference sequences identified for a given sample.
+ARIBA allows for a fast, efficient and scalable approach to the genotyping of short-read sequence data. The inbuilt ARIBA summary function provides in-depth insight into the quantity and quality of genes detected within short-read sequence data, however the cluster ID's generated through the use of CD-hit can complicate the en-masse generation of easily interpretable reports detailing the specific reference sequences identified within a given sample's sequence data.
 
-Enter ARIBAlord; a series of scripts used for the processing of ARIBA data. It streamlines the processing of genotypic and phylogenetic data (multi-locus sequence type, serotype and phylogroup) and streamlines the conglomeration of such data into phylogenetic, genotypic or combined tables.
+Enter ARIBAlord; a script used for the processing of ARIBA data. It streamlines the processing of genotypic and phylogenetic data produced by ARIBA and allows serotype and phylogroup classification of E. coli isolates.
 
 
 
@@ -46,10 +46,6 @@ Next we concatenate these files using cat:
 for f in *<ARIBA_output_prefix>/mlst_report.tsv.new; do cat $f > <output.tsv>
 ```
 
-Then we need to strip unnecessary characters from the sample names to facilitate downstream processing. In this example, the read filename is appended by \_R1.fastq.gz. Feel free to edit the regular expression in the following script if your filename doesn't conform to this structure. Not that the following command replaces the string of interest in place, therefore you may want to ensure you get your string substitution correct by running the replacement command on a copy of your ARIBA summary files or else you might have to regenerate them.
-```
-perl -p -i -e 's/_R1\.fastq\.gz.*\/.*report\.tsv//g' <output.tsv>
-```
 The concatenated output is now ready for processing with ARIBAlord.
 
 Note: This concatenated output also concatenates the header from each file. For your viewing please, you can delete the extra header lines as follows, however this step is not required if you plan to run the file through the ARIBAlord subcommands MLST, phylojoin or genophy.
@@ -59,15 +55,12 @@ grep -v ^ST <output.tsv> > <noheaders_output.tsv>
 ```
 
 ## ARIBAlord Usage
-ARIBAlord subcommands can be viewed using the following command:
+ARIBAlord arguments can be viewed using the following command:
 
 ```
 python ARIBAlord.py -h
 ```
-The arguments for the various ARIBAlord subcommands can be viewed similarly, for example:
-```
-python genophy -h
-```
+
 
 ## Authors
 
