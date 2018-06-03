@@ -20,7 +20,7 @@ def geno(glob_path, clean, chars):
     #initialise empty list for unique names from all tables
     names = []
 
-    for n, csv in enumerate(glob.glob('{}/FH*.csv'.format(glob_path))):
+    for n, csv in enumerate(glob.glob('{}/*.csv'.format(glob_path))):
 
         print('\t Found csv file {}: {}...'.format(n+1, csv))
 
