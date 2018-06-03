@@ -6,10 +6,6 @@ import glob
 import os
 from functools import reduce
 
-#dont forgets**********
-
-
-
 def geno(glob_path, clean, chars):
     """ Processes ARIBA data
     """
@@ -26,7 +22,7 @@ def geno(glob_path, clean, chars):
 
     for n, csv in enumerate(glob.glob('{}/FH*.csv'.format(glob_path))):
 
-        print('\t {} found {}...'.format(n+1, csv))
+        print('\t Found csv file {}: {}...'.format(n+1, csv))
 
         df = pd.read_csv(csv)
 
@@ -40,10 +36,17 @@ def geno(glob_path, clean, chars):
         #strip whitespace from column heads
         df_clean = df.rename(columns=lambda x: x.strip())
 
-        #convert string values to representative integers
-        cats = ['yes', 'no', 'yes_nonunique', 'partial', 'interrupted', 'fragmented']
-        values = [1, 0, 1, 0, 0, 0]
-        df_test = df_clean.replace(to_replace = cats, value = values)
+        phylogroup = [(re.search("tspE4", i)) for i in df_clean]
+
+        #convert string values to representative integers. Values are different for phylogroup
+        if any(phylogroup):
+            cats = ['yes', 'no', 'yes_nonunique', 'partial', 'interrupted', 'fragmented']
+            values = [1, 0, 1, 1, 1, 1]
+            df_test = df_clean.replace(to_replace = cats, value = values)
+        else:
+            cats = ['yes', 'no', 'yes_nonunique', 'partial', 'interrupted', 'fragmented']
+            values = [1, 0, 1, 0, 0, 0]
+            df_test = df_clean.replace(to_replace = cats, value = values)
 
         #initialise empty list for assembled,ref_seq dataframes
         df_list = []
@@ -144,9 +147,9 @@ def simple_clean(dflist):
             df = df.rename(columns=lambda x: re.sub('^(IS.*)',r'i_\1',x))
 
         elif any(MLST):
-            warnings.warn('CSV file contains MLST alleles.', Warning)
+            warnings.warn('CSV file appears to contain MLST alleles.', Warning)
         else:
-            warnings.warn('CSV file contents could not be identified and therefore may have sloppy column headers.', Warning)
+            warnings.warn('CSV file contents could not be identified and therefore may have sloppy column headers.\n This may be due to the use of a custom database', Warning)
         
         df = df.rename(columns=lambda x: re.sub('.*name','name',x))
 
@@ -159,11 +162,11 @@ def simple_clean(dflist):
 
 def mlst(glob_path):
 
-    for n, csv in enumerate(glob.glob('{}/*.txt'.format(glob_path))):
+    for n, txt in enumerate(glob.glob('{}/*.txt'.format(glob_path))):
 
-        print('\t {} MLST file found: {}...'.format(n+1, csv))
+        print('\tFound MLST file: {}...'.format(txt))
 
-        MLST = pd.read_csv(csv, delimiter='\t')
+        MLST = pd.read_csv(txt, delimiter='\t')
 
         MLST_pattern = [(re.search(r"^adk|^fumC|^gyrB|^icd|^mdh|purA|recA", i)) for i in MLST]
 
@@ -327,55 +330,140 @@ parser.add_argument('-chars','--characters', action='store_true', help='Pattern 
 args = parser.parse_args()
 
 if args.clean:
-    print('\tRunning geno on CSV files in {} \n\t trimming characters in column \'name\' after \'{}\'...'.format(args.input_dir, args.characters))
+    print('\tRunning geno on CSV files in {} \nTrimming characters in column \'name\' after \'{}\'...'.format(args.input_dir, args.characters))
     dflist1, names = geno(args.input_dir, args.clean, args.characters)
 else:
-    print('\tRunning geno on CSV files in {}... \n\tArgument \'--trim\' not used.'.format(args.input_dir))
+    print('Running geno on CSV files in {}... \nArgument \'--trim\' not used.'.format(args.input_dir))
     dflist1, names = geno(args.input_dir, args.clean, args.characters)
 
+#Used to generate unique list of names from across all CSVs
 catnames = pd.concat(names)
-
 catnames.reset_index(inplace=True)
-
 names = catnames.drop_duplicates(keep='first')
 
-print('\tCleaning headers of processed CSV files, adding identifiers prefixes')
+print('\nCleaning headers of processed CSV files, adding identifiers prefixes')
 dflist2 = simple_clean(dflist1)
 
-print('\tGenerating MLST table')
+print('\nGenerating MLST table:')
 mlst_table = mlst(args.input_dir)
 
-
+#Set index to name and take only name and ST from MLST table
 mlst_table = mlst_table.set_index('name')
-
 mlst_simple = mlst_table.iloc[:,0].to_frame()
 
+#Join the processed tables generated in geno
 full = mlst_table.join(dflist1)
 simple = mlst_simple.join(dflist2)
 
+#Process serotype data
 EcOH = sero(simple, simple_csv=True)
 
+#Process phylogroup data
 simple = simple.reset_index()
-
 phylogroup = phylog(simple)
 
+#Merge gene hits with serotype and phylogroup data
 simple = pd.merge(simple,EcOH,how='outer',on='name')
-
 simple = pd.merge(simple,phylogroup,how='outer',on='name')
 
+#Remove columns that contain raw sero/phylogroup hits
 simple = simple.loc[:, ~simple.columns.str.startswith('sero_')]
 simple = simple.loc[:, ~simple.columns.str.startswith('phylogroup_')]
 
-simple = simple.set_index(['name','ST','phylogroup','O_type','H_type','OH_type'])
+#Create column 'phyloname' from name and phylogenetic data
+simple['phyloname'] = simple['name']+"_ST"+simple['ST']+"_"+simple['phylogroup']+"_"+simple['OH_type']
 
-simple = simple.reindex_axis(sorted(simple.columns), axis=1)
+#Generate counts of STs and Novel's detected by ARIBA
+STcount = simple['ST'].replace('\*','',regex=True)
+Novelcount = STcount[STcount == 'Novel']
+STcount = STcount[STcount != 'Novel']
+STcount = len(STcount.unique())
+Novelcount = len(Novelcount)
 
-simple = simple.reset_index()
+#Set multi-index, largely to simplify the moving of columns, as we want these columns at the start
+simple = simple.set_index(['name','phyloname','ST','phylogroup','O_type','H_type','OH_type'])
 
+#Calculate genenum from columns in dataframe and samplenum from number of rows in dataframe
+genenum = simple.shape[1]
+samplenum = simple.shape[0]
+
+#Sort columns by their names
+simple = simple.reindex(sorted(simple.columns), axis=1)
+
+#Remove columns with sum zero
 simple = simple.loc[:, (simple != 0).any(axis=0)]
 
-#Write to CSV
-print('\tWriting simplified ARIBA table to {}simple.csv')
-simple.to_csv(args.output_file+'simple.csv')
-print('\tWriting full ARIBA table to {}simple.csv')
-full.to_csv(args.output_file+'full.csv')
+#Filter virulence columns
+simplevir = simple.filter(regex="^v_")
+#Convert anything greater than a one to a one to facilitate sum
+simplevir[simplevir > 1] = 1
+#filter rows based on which the highest count of virulence genes
+simplevirsum = simplevir[simplevir.sum(axis=1) == simplevir.sum(axis=1).max()]
+
+#As above for resistance
+simpleres = simple.filter(regex="^r_")
+simpleres[simpleres > 1] = 1
+simpleressum = simpleres[simpleres.sum(axis=1) == simpleres.sum(axis=1).max()]
+
+#As above for plasmid
+simpleplas = simple.filter(regex=r"^(p_Inc|p_p0111)")
+simpleplas[simpleplas > 1] = 1
+simpleplassum = simpleplas[simpleplas.sum(axis=1) == simpleplas.sum(axis=1).max()]
+
+#As above for insertion/integrase
+simpleins = simple.filter(regex="^i_")
+simpleins[simpleins > 1] = 1
+simpleinssum = simpleins[simpleins.sum(axis=1) == simpleins.sum(axis=1).max()]
+
+#Initialises an empty list we can append to facilitate report writing
+towrite = []
+
+#Generating statistics to report on
+towrite.append('{} read-sets analysed'.format(samplenum))
+towrite.append('\n{} sequence types identified'.format(STcount))
+towrite.append('\n{} samples may constitute novel STs'.format(Novelcount))
+towrite.append('\n{} genes identified'.format(genenum))
+
+towrite.append('\nResistance genes detected include:')
+for i in simpleres.columns:
+    toappend = {re.sub('r_','',i), int(sum(simple.loc[:,i]))}
+    towrite.append(toappend)
+
+#A series of for loops that print the sample phylonames for samples that have max counts of genes of various associations
+#Vir Max
+towrite.append("\n Max virulence count ("+str(simplevir.sum(axis=1).max()) + ") detected in the following samples: ")
+simplevirsum.reset_index(inplace=True)
+for i in simplevirsum['phyloname']:
+    towrite.append(i)
+#Res Max
+towrite.append("\n Max resistance count ("+str(simpleres.sum(axis=1).max()) + ") detected in the following samples: ")
+simpleressum.reset_index(inplace=True)
+for i in simpleressum['phyloname']:
+    towrite.append(i)
+#Plas Max
+towrite.append("\n Max plasmid count ("+str(simpleplas.sum(axis=1).max()) + ") detected in the following samples: ")
+simpleplassum.reset_index(inplace=True)
+for i in simpleplassum['phyloname']:
+    towrite.append(i)
+#Insertion/Integrase Max
+towrite.append("\n Max insertion count ("+str(simpleins.sum(axis=1).max()) + ") detected in the following samples: ")
+simpleinssum.reset_index(inplace=True)
+for i in simpleinssum['phyloname']:
+    towrite.append(i)
+
+#Open a file for us to write our report
+report = open('{}_report.txt'.format(args.output_file), 'w')
+
+#Write items from towrite to report file
+for item in towrite:
+  report.write("{}\n".format(item))
+
+#Close file and print outfile name
+report.close()
+print("\nARIBAlord report written to {}.csv".format(item))
+
+#Write final tables to CSV
+print('\nWriting simplified ARIBA table to {}_simple.csv'.format(args.output_file))
+simple.to_csv(args.output_file+'_simple.csv')
+print('\nWriting full ARIBA table to {}_full.csv\n'.format(args.output_file))
+full.to_csv(args.output_file+'_full.csv')
