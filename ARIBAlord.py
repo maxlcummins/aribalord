@@ -26,6 +26,17 @@ def geno(glob_path, clean, chars):
 
         df = pd.read_csv(csv)
 
+        assembled = (re.search(r".*\.ref_seq", df.columns[1]))
+        ref = (re.search(r".*\.ref_seq", df.columns[2]))
+
+        correctcols = [assembled,ref]
+
+        if any(correctcols) == False:
+            print("\nColumn names in the above file appear to be incorrect\n\nDid you generate the ARIBA summaries as follows?\n\tariba summary --cluster_cols assembled,ref_seq <summary_prefix> <ARIBA_output/report.tsv>")
+            print("\nAlternatively you may have saved your MLST file as a CSV rather than a .txt or have other CSV files in this directory other than files to be processed by ARIBAlord...\n")
+            exit()
+
+
         if clean:
             df['name'] = df['name'].replace("{}.*".format(chars), "", regex = True)
         else:
@@ -83,7 +94,7 @@ def geno(glob_path, clean, chars):
 
         #join new dataframes from frames to base dataframe
         data_all = base.join(frame)
-    
+
         dflist1.append(data_all)
 
         names.append(base)
@@ -281,38 +292,35 @@ def sero(table, simple_csv=True):
 
 def phylog(table):
 
+    #Pull out columns with names 'name' or starting with 'phylogroup'
     phylogroup = table.filter(regex=r'(^name|^phylogroup_)', axis=1)
 
+    #Trim 'phylogroup' prefix
     phylogroup = phylogroup.rename(columns=lambda x: re.sub(r'^phylogroup_','',x))
 
+    #Set index to name to simplify processing
     phylogroup.set_index('name')
 
+    #Subset samples based on gene carriage as per phylogroup classification
     B2_or_D = phylogroup.loc[phylogroup['chuA'] == 1]
-
     A_or_B1 = phylogroup.loc[phylogroup['chuA'] == 0]
-
     B2 = B2_or_D.loc[phylogroup['yjaA'] == 1]
-
     D = B2_or_D.loc[phylogroup['yjaA'] == 0]
-
     B1 = A_or_B1.loc[phylogroup['tspE4.C2'] == 1]
-
     A = A_or_B1.loc[phylogroup['tspE4.C2'] == 0]
 
+    #Initialise empty list and append the subsetted dataframes to it
     listdfs = []
-
     listdfs = listdfs.append([A,B1,B2,D])
 
-
+    #Classify samples based on the dataframe they have been subset into
     A['phylogroup'] = 'A'
     B1['phylogroup'] = 'B1'
     B2['phylogroup'] = 'B2'
     D['phylogroup'] = 'D'
 
-    combined = pd.DataFrame()
-
+    #Combine dataframe and gene columns
     combined = pd.DataFrame(combined.append([A,B1,B2,D]))
-
     summary = combined.loc[:,['name','phylogroup']]
 
     return summary
@@ -426,7 +434,7 @@ towrite.append('\n{} genes identified'.format(genenum))
 
 towrite.append('\nResistance genes detected include:')
 for i in simpleres.columns:
-    toappend = {re.sub('r_','',i), int(sum(simple.loc[:,i]))}
+    toappend = str(re.sub('r_','',i) + "\t" + str(int(sum(simple.loc[:,i]))))
     towrite.append(toappend)
 
 #A series of for loops that print the sample phylonames for samples that have max counts of genes of various associations
@@ -460,7 +468,7 @@ for item in towrite:
 
 #Close file and print outfile name
 report.close()
-print("\nARIBAlord report written to {}.csv".format(item))
+print("\nARIBAlord report written to {}_report.txt".format(args.output_file))
 
 #Write final tables to CSV
 print('\nWriting simplified ARIBA table to {}_simple.csv'.format(args.output_file))
