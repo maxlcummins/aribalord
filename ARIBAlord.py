@@ -74,6 +74,7 @@ def geno(glob_path, clean, chars):
         for i in zip_it:
             df_pair = df_test.iloc[:,[i[0],i[1]]]
             df_list.append(df_pair)
+            
 
         #initialise empty list
         frame = []    
@@ -85,9 +86,13 @@ def geno(glob_path, clean, chars):
         #append these modified dataframes to new list of dataframes called frame
         for i in df_list :
             data_pivot = (i.pivot(values = i.columns[0], columns = i.columns[1]))
+            if len(data_pivot.columns) == 1:
+                data_pivot['NaN'] = np.nan
+                data_pivot = data_pivot.iloc[:,[1,0]]
             data_pivot = data_pivot.iloc[:,1:]
             data_pivot = data_pivot.fillna(0)
             frame.append(data_pivot)
+            
 
         #make list of original sample names using index of original df    
         base = df.iloc[:,0:0]
@@ -140,18 +145,30 @@ def simple_clean(dflist):
             df = df.rename(columns=lambda x: re.sub('^(.*)',r'v_\1',x))
 
         elif any(serotype):
-            df = df.rename(columns=lambda x: re.sub('^([A-z]+)_.*_((O|H).*)$',r'\1_\2',x))
-            df = df.rename(columns=lambda x: re.sub('^([A-z]+)_((O|H).*)$',r'sero_\1_\2',x))
+            df = df.rename(columns=lambda x: re.sub('(^[^_]+)_[^_]+_[^_]+_(.*)',r'sero_\1:\2',x))
 
         elif any(resistance):
             df = df.rename(columns=lambda x: re.sub('(.*)(_|\.)[0-9]+_.*',r'\1',x))
             df = df.rename(columns=lambda x: re.sub('^(.*)',r'r_\1',x))
+            df = df.rename(columns=lambda x: re.sub('aph_3____Ib','strA',x))
+            df = df.rename(columns=lambda x: re.sub('aph_6__Id','strB',x))
+            df = df.rename(columns=lambda x: re.sub('aac_3__IId','aac(3)-IId',x))
+            df = df.rename(columns=lambda x: re.sub('r_aph_3___Ia','r_aph(3\')Ia',x))
+            df = df.rename(columns=lambda x: re.sub('r_aph_4__Ia','r_aph(4\')Ia',x))
+            df = df.rename(columns=lambda x: re.sub('blaTEM_','blaTEM-',x))
+            df = df.rename(columns=lambda x: re.sub('lnu_([A-Z])_',r'lnu(\1)',x))
+            df = df.rename(columns=lambda x: re.sub('mph_([A-Z])_',r'mph(\1)',x))
+            df = df.rename(columns=lambda x: re.sub('tet_([A-Z])_',r'tet(\1)',x))
+
 
         elif any(plasmid):
             df = df.rename(columns=lambda x: re.sub('(.*)(_|\.)[0-9]+_.*',r'\1',x))
             df = df.rename(columns=lambda x: re.sub('^FIA',r'IncFIA',x))
             df = df.rename(columns=lambda x: re.sub('^(.*)',r'p_\1',x))
             df = df.rename(columns=lambda x: re.sub('(p_IncF[A-Z]+)_.*',r'\1',x))
+            df = df.rename(columns=lambda x: re.sub('(p_Col_MG828)_',r'\1',x))
+            df = df.rename(columns=lambda x: re.sub('p_IncB_O_K_Z','p_IncB/O/K/Z',x))
+            df = df.rename(columns=lambda x: re.sub('p_IncHI1B_CIT_','p_IncHI1B',x))
 
         elif any(insertion):
             df = df.rename(columns=lambda x: re.sub('([^-])_.*',r'\1',x))
@@ -173,7 +190,7 @@ def simple_clean(dflist):
 
 def mlst(glob_path):
 
-    for n, txt in enumerate(glob.glob('{}/*.txt'.format(glob_path))):
+    for n, txt in enumerate(glob.glob('{}/*.tsv'.format(glob_path))):
 
         print('\tFound MLST file: {}...'.format(txt))
 
@@ -187,6 +204,11 @@ def mlst(glob_path):
             warnings.warn('MLST text file does not contain expected values...', Warning)
 
         MLST.columns.values[-1] = 'name'
+
+        if args.clean:
+            MLST['name'] = MLST['name'].replace("{}.*".format(chars), "", regex = True)
+        else:
+            MLST['name'] = MLST['name'].replace("_R1.*", "", regex = True)
 
         pattern = "^ST"
         filter_ = MLST['ST'].str.contains(pattern)
@@ -207,6 +229,7 @@ def sero(table, simple_csv=True):
 
     table = table.rename(columns=lambda x: re.sub(r'^sero_','',x))
     
+   
     #melt df
     table = pd.melt(table, id_vars='name')
 
@@ -215,10 +238,9 @@ def sero(table, simple_csv=True):
     table = table[table.value == 1]
 
     #split string of fliC_H4, for example, to two columns, one with fliC and one with H4
-    table['simple'] = table.variable.str.split('_').str[0]
-    table['type'] = table.variable.str.split('_').str[1]
-
-    
+    table['simple'] = table.variable.str.split(':').str[0]
+    table['type'] = table.variable.str.split(':').str[1]
+  
     #remove unwanted columns
     table = table.iloc[:,[0,3,4]]
 
@@ -234,24 +256,47 @@ def sero(table, simple_csv=True):
     # #pivot table
     table = table.pivot(index = 'name', columns = 'simple', values = 'O_or_H')
 
+
+    table['wzy'] = table['wzy'].replace("^[0-9]+_", "", regex = True)
+
     #create empty columns with NaNs - i believe this is redundant...
     table['O1cat'] = np.nan
     table['O2cat'] = np.nan
     table['O_type'] = np.nan
     table['H_type'] = np.nan
 
+    non_fliCs_present = [(re.search(r"^(flnA|flmA|fllA|flkA)", i)) for i in table]
+
+    print(non_fliCs_present)
+
     #if no non-fliC H hits then set H_type to fliC, otherwise set to fliC and add an asterisk
-    if 'flnA' or 'flmA' or 'fllA' or 'flkA' in table.columns:
-        table['H_type'] = table['fliC']
+    if non_fliCs_present == False:
+        table['H_type'] = table['fliC']+"*"
     else:
-        table['H_type'] = str(table['fliC']+"*")
+        table['H_type'] = table['fliC']
 
     #replace null with blank
-    table = table.where((pd.notnull(table)), str(''))
+    table = table.where((pd.notnull(table)), str('*'))
 
     #add two new columns combining the gene hits for wzm/wzt and wzx/wzy
-    table['O1cat'] = table['wzm'].map(str) + '*/' + table['wzt'] + '*'
-    table['O2cat'] = table['wzx'].map(str) + '*/' + table['wzy'] + '*'
+    table['O1cat'] = table['wzm'].map(str) + "*" + '/' + table['wzt'] + "*"
+    table['O2cat'] = table['wzx'].map(str) + "*" + '/' + table['wzy'] + "*"
+
+    #There are some tricky combinations of wzx/wzy that choke up our serotyping processing.
+    #Below are regular expressions that process such cases
+    table['O2cat'] = table['O2cat'].replace("O17_O77\*\/O17_O44\*","O17/O44/O77", regex = True)
+    table['O2cat'] = table['O2cat'].replace("O50_O2\*\/O2\*","O2", regex = True)
+    table['O2cat'] = table['O2cat'].replace("O50_O2\*\/O50\*","O50", regex = True)
+    table['O2cat'] = table['O2cat'].replace("O118_O151\*\/O118\*","O118", regex = True)
+    table['O2cat'] = table['O2cat'].replace("O118_O151\*\/O151\*","O151", regex = True)
+    table['O2cat'] = table['O2cat'].replace("O135\*\/O13_O135\*","O135", regex = True)
+    table['O2cat'] = table['O2cat'].replace("O13\*\/O13_O135\*","O13", regex = True)
+    table['O2cat'] = table['O2cat'].replace("O123\*\/O123_O186\*","O123", regex = True)
+    table['O2cat'] = table['O2cat'].replace("O186\*\/O123_O186\*","O186", regex = True)
+    table['O2cat'] = table['O2cat'].replace("O169\*\/O169_O183\*","O169", regex = True)
+    table['O2cat'] = table['O2cat'].replace("O183\*\/O169_O183\*","O183", regex = True)
+    table['O2cat'] = table['O2cat'].replace("O141ab_O141ac\*\/O141ab\*","O141b", regex = True)
+    table['O2cat'] = table['O2cat'].replace("O141ab_O141ac\*\/O141ac\*","O141c", regex = True)
 
     #if wzm==wzt then set O1 (O_type 1) to wzm, otherwise set O1 to O1cat
     table['O1'] = np.where(table['wzm']==table['wzt'], table['wzm'], table['O1cat'])
@@ -259,16 +304,18 @@ def sero(table, simple_csv=True):
     #if wzx==wzy then set O2 (O_type 2) to wzx, otherwise set O2 to O2cat
     table['O2'] = np.where(table['wzx']==table['wzy'], table['wzx'], table['O2cat'])
 
-    #replace */* with *
-    table = table.replace("\*/\*$", "*", regex = True)
+    #replace */* with an empty cell
+    table = table.replace("\*/\*$", "", regex = True)
 
     #combined O1 and O2 with a slash between them
     table['O_type'] = table['O1'].map(str) + '/' + table['O2']
 
     #replace separating strings that exist in absence of gene hits
-    table = table.replace("^\*-", "", regex = True)
-    table = table.replace("^/", "", regex = True)
-    table = table.replace("/$", "", regex = True)
+    table = table.replace("\*\*\/\*\*", "", regex = True)
+    table = table.replace("\*\/\*", "", regex = True)
+    table = table.replace("^\*\/", "", regex = True)
+    table = table.replace("\/\*", "", regex = True)
+
 
     #replace non-hits with ONT
     table['O_type'] = table['O_type'].replace("^$", "ONT", regex = True)
@@ -320,6 +367,7 @@ def phylog(table):
     D['phylogroup'] = 'D'
 
     #Combine dataframe and gene columns
+    combined = pd.DataFrame()
     combined = pd.DataFrame(combined.append([A,B1,B2,D]))
     summary = combined.loc[:,['name','phylogroup']]
 
@@ -365,6 +413,7 @@ simple = mlst_simple.join(dflist2)
 
 #Process serotype data
 EcOH = sero(simple, simple_csv=True)
+serotable = sero(simple, simple_csv=False)
 
 #Process phylogroup data
 simple = simple.reset_index()
@@ -475,3 +524,5 @@ print('\nWriting simplified ARIBA table to {}_simple.csv'.format(args.output_fil
 simple.to_csv(args.output_file+'_simple.csv')
 print('\nWriting full ARIBA table to {}_full.csv\n'.format(args.output_file))
 full.to_csv(args.output_file+'_full.csv')
+print('\nWriting full serotype table {}_sero.csv\n'.format(args.output_file))
+serotable.to_csv(args.output_file+'_sero.csv')
