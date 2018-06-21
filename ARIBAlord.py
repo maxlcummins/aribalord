@@ -131,6 +131,7 @@ def simple_clean(dflist):
             df = df.rename(columns=lambda x: re.sub('^(.*)(NC_)?_.*',r'v_\1',x))
             df = df.rename(columns=lambda x: re.sub('ipaH','v_ipaH',x))
             df = df.rename(columns=lambda x: re.sub('^v_IS','i_IS',x))
+            df = df.rename(columns=lambda x: re.sub('IS1_A','IS1',x))
             df = df.rename(columns=lambda x: re.sub('^v_int','i_int',x))
             df = df.rename(columns=lambda x: re.sub('^v_(mer|ter|sil|pco|czc|scs)',r'r_\1',x))
             df = df.rename(columns=lambda x: re.sub('_$','',x))
@@ -266,8 +267,6 @@ def sero(table, simple_csv=True):
     table['H_type'] = np.nan
 
     non_fliCs_present = [(re.search(r"^(flnA|flmA|fllA|flkA)", i)) for i in table]
-
-    print(non_fliCs_present)
 
     #if no non-fliC H hits then set H_type to fliC, otherwise set to fliC and add an asterisk
     if non_fliCs_present == False:
@@ -428,7 +427,7 @@ simple = simple.loc[:, ~simple.columns.str.startswith('sero_')]
 simple = simple.loc[:, ~simple.columns.str.startswith('phylogroup_')]
 
 #Create column 'phyloname' from name and phylogenetic data
-simple['phyloname'] = simple['name']+"_ST"+simple['ST']+"_"+simple['phylogroup']+"_"+simple['OH_type']
+simple['phyloname'] = simple['name']+"-ST"+simple['ST']+"-"+simple['phylogroup']+"-"+simple['OH_type']
 
 #Generate counts of STs and Novel's detected by ARIBA
 STcount = simple['ST'].replace('\*','',regex=True)
