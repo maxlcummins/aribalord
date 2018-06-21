@@ -29,7 +29,7 @@ Generation of a summary file using the ARIBA function 'summary' is required for 
 To generate the summary files in a format that ARIBAlord can handle, run the following command:
 
 ```
-ARIBA summary --cluster_cols assembled,ref_seq <prefix> <*_ARIBA_output_prefix/report.tsv>
+ARIBA summary --cluster_cols assembled,ref_seq <prefix> *<ARIBA_output_directory/report.tsv>
 ```
 
 ### MLST pre-processing
@@ -39,11 +39,11 @@ The first command appends each row of each MLST report with the name of the file
 
 The following command should do the trick:
 ```
-for f in *<ARIBA_output_prefix>/mlst_report.tsv; do paste $f <(yes $f | head -n $(cat $f | wc -l)) > $f.new; done
+for f in *<ARIBA_output_directory>/mlst_report.tsv; do paste $f <(yes $f | head -n $(cat $f | wc -l)) > $f.new; done
 ```
 Next we concatenate these files using cat:
 ```
-for f in *<ARIBA_output_prefix>/mlst_report.tsv.new; do cat $f > <output.tsv>
+cat <ARIBA_output_directory>/mlst_report.tsv.new > <output.tsv>
 ```
 
 The concatenated output is now ready for processing with ARIBAlord.
