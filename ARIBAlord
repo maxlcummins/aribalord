@@ -220,8 +220,6 @@ def mlst(glob_path):
 
         MLST.columns.values[-1] = 'name'
 
-        print(MLST)
-
         if args.clean:
             MLST['name'] = MLST['name'].replace("{}.*".format(chars), "", regex = True)
         else:
