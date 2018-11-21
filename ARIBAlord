@@ -229,7 +229,7 @@ def mlst(glob_path):
 
         pattern = "^ST"
         
-        MLST = MLST[~filter_]
+        MLST = MLST[~MLST["ST"].str.contains("ST")]
 
         mlst_table = MLST
 
