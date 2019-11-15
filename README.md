@@ -36,7 +36,7 @@ Generation of a summary file using the ARIBA function 'summary' is required for 
 To generate the summary files in a format that ARIBAlord can handle, run the following command:
 
 ```
-ARIBA summary --cluster_cols assembled,ref_seq <prefix> *<ARIBA_output_directory/report.tsv>
+ariba summary --cluster_cols assembled,ref_seq <prefix> *<ARIBA_output_directory/report.tsv>
 ```
 
 ### MLST pre-processing
