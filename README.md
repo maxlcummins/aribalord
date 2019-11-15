@@ -18,6 +18,13 @@ There are also several Python packages upon which ARIBAlord was built:
   * pandas
   * numpy
   * argparse
+  * regex
+  
+ If you're using conda, try this:
+ 
+ ```
+ conda create -n aribalord pandas regex argparse
+ ```
   
 ## Data Preprocessing
 
