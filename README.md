@@ -20,7 +20,7 @@ There are also several Python packages upon which ARIBAlord was built:
   * argparse
   * regex
   
- If you're using conda, try this:
+ If you're using conda, use an environment made as follows:
  
  ```
  conda create -n aribalord pandas regex argparse
